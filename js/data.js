@@ -75,5 +75,59 @@ const STATION_DATA = [
     distance:      2.8,
     baseTravelMin: 9,
     intersections: 7
+  },
+  {
+    id: 7,
+    name:          'Merivale Costco',
+    coords:        [45.3283, -75.7335],
+    basePrice:     1.37,
+    distance:      12.5,
+    baseTravelMin: 20,
+    intersections: 14
+  },
+  {
+    id: 8,
+    name:          'St. Laurent Shell',
+    coords:        [45.4214, -75.6385],
+    basePrice:     1.49,
+    distance:      4.8,
+    baseTravelMin: 12,
+    intersections: 10
+  },
+  {
+    id: 9,
+    name:          'Hunt Club Pioneer',
+    coords:        [45.3340, -75.6601],
+    basePrice:     1.42,
+    distance:      10.5,
+    baseTravelMin: 18,
+    intersections: 11
+  },
+  {
+    id: 10,
+    name:          'Carling Esso',
+    coords:        [45.3725, -75.7533],
+    basePrice:     1.46,
+    distance:      7.2,
+    baseTravelMin: 15,
+    intersections: 13
+  },
+  {
+    id: 11,
+    name:          'Montreal Rd Ultramar',
+    coords:        [45.4410, -75.6410],
+    basePrice:     1.44,
+    distance:      5.5,
+    baseTravelMin: 14,
+    intersections: 8
+  },
+  {
+    id: 12,
+    name:          'Bank St Canadian Tire',
+    coords:        [45.3850, -75.6705],
+    basePrice:     1.45,
+    distance:      4.5,
+    baseTravelMin: 10,
+    intersections: 9
   }
 ];

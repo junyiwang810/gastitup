@@ -30,11 +30,22 @@ class App {
   constructor() {
     // Service objects
     this._conditions = new TimeConditions();
-    this._ui         = new UIManager();
-    this._map        = new MapManager('map', USER_ORIGIN, 12);
+    this._ui = new UIManager();
+    this._map = new MapManager('map', USER_ORIGIN, 12);
 
     // Convert raw data records into GasStation instances
     this._stations = STATION_DATA.map(record => new GasStation(record));
+
+    // OBD-II adapter (Veepeak Mini ELM327 via Web Bluetooth)
+    this._obdManager = new OBDManager(
+      metrics => {
+        if (this._obdPanel) this._obdPanel.updateMetrics(metrics);
+      },
+      status => {
+        if (this._obdPanel) this._obdPanel.updateStatus(status);
+      }
+    );
+    this._obdPanel = null; // mounted in init()
   }
 
   // ── Initialisation ─────────────────────────────────────────────
@@ -72,6 +83,46 @@ class App {
     document.getElementById('rerun-btn')
       .addEventListener('click', () => this._launchWizard());
 
+    // Mount the OBD-II live panel in the sidebar
+    const obdMount = document.getElementById('obd-panel-mount');
+    if (obdMount) {
+      this._obdPanel = new OBDPanel(
+        obdMount,
+        this._obdManager,
+        (estimatedEfficiency) => {
+          // Auto-fill the efficiency input with the OBD-derived value
+          const effInput = document.getElementById('efficiency');
+          if (effInput) {
+            effInput.value = estimatedEfficiency.toFixed(1);
+            // Show a brief highlight to signal the auto-fill
+            effInput.classList.add('form-input--obd-fill');
+            setTimeout(() => effInput.classList.remove('form-input--obd-fill'), 1500);
+          }
+          // Recalculate if we already have results
+          const sidebar = document.getElementById('sidebar');
+          if (sidebar && sidebar.classList.contains('sidebar--results-mode')) {
+            this.calculate();
+          }
+        }
+      );
+    }
+    // ── Map/Sidebar View Toggle ──
+    const viewMapBtn = document.getElementById('view-map-btn');
+    const showControlsBtn = document.getElementById('show-controls-btn');
+    const sidebarElement = document.getElementById('sidebar');
+
+    if (viewMapBtn && showControlsBtn && sidebarElement) {
+      viewMapBtn.addEventListener('click', () => {
+        sidebarElement.classList.add('sidebar--hidden');
+        showControlsBtn.classList.remove('fab-btn--hidden');
+      });
+
+      showControlsBtn.addEventListener('click', () => {
+        sidebarElement.classList.remove('sidebar--hidden');
+        showControlsBtn.classList.add('fab-btn--hidden');
+      });
+    }
+
     // Launch the wizard as the first thing the user sees
     this._launchWizard();
 
@@ -94,18 +145,23 @@ class App {
    */
   _launchWizard() {
     const wizard = new Wizard(values => {
-      const { efficiency, fuelNeeded, carName } = values;
+      const { efficiency, fuelNeeded, carName, obdConnected, obdRange, obdGrade } = values;
 
       // Write collected values into the sidebar inputs
       document.getElementById('efficiency').value  = efficiency;
       document.getElementById('fuel-needed').value = fuelNeeded;
 
-      // Update the compact rerun bar — show car name when available
+      // Update the compact rerun bar — include OBD trip data when available
       const summary = document.getElementById('rerun-summary');
       if (summary) {
-        summary.innerHTML = carName
+        let html = carName
           ? `<strong>${carName}</strong> &middot; <strong>${fuelNeeded} L</strong> to pump`
           : `<strong>${efficiency} L/100 km</strong> &middot; <strong>${fuelNeeded} L</strong> to pump`;
+
+        if (obdConnected && obdRange) {
+          html += ` &middot; <strong>~${obdRange} km</strong> range`;
+        }
+        summary.innerHTML = html;
       }
 
       // Run the calculation immediately
@@ -113,7 +169,7 @@ class App {
 
       // Switch the sidebar to results-first layout
       document.getElementById('sidebar').classList.add('sidebar--results-mode');
-    });
+    }, this._obdManager);
 
     wizard.mount(document.body);
   }
@@ -167,6 +223,12 @@ class App {
         // When a marker is clicked, focus the map on that station
         const r = results.find(r => r.id === stationId);
         if (r) this._map.focusStation(r.coords, r.id);
+        
+        // Move sidebar to the side
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && !sidebar.classList.contains('sidebar--hidden')) {
+          sidebar.classList.add('sidebar--side');
+        }
       }
     );
 
@@ -177,7 +239,15 @@ class App {
       bestResult.id,
       closestResult,
       conditions,
-      result => this._map.focusStation(result.coords, result.id)
+      result => {
+        this._map.focusStation(result.coords, result.id);
+        
+        // Move sidebar to the side
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && !sidebar.classList.contains('sidebar--hidden')) {
+          sidebar.classList.add('sidebar--side');
+        }
+      }
     );
 
     // g. Animate the map camera to show all stations

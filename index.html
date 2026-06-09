@@ -4,163 +4,36 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Smart Gas Map — Ottawa</title>
-  <meta name="description" content="Calculate the true cost of driving to a cheaper gas station, accounting for traffic, city driving penalties, and time-of-day pricing." />
+  <meta name="description" content="Calculate the true cost of driving to a cheaper gas station in Ottawa, accounting for traffic, city driving penalties, and time-of-day pricing." />
 
-  <!-- Google Fonts: Inter (single typeface for a cleaner look) -->
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&family=Sora:wght@700;800&display=swap" rel="stylesheet" />
 
-  <!-- Leaflet CSS (interactive map styles) -->
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <!-- Application styles -->
+  <!-- App styles -->
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
 
-<div id="app">
+  <div id="app"></div>
 
-  <!-- ═══════════════════════════════════════════════════════
-       SIDEBAR — control panel and results list
-  ═══════════════════════════════════════════════════════ -->
-  <aside id="sidebar" aria-label="Gas Map Controls">
+  <!-- External libraries (order matters) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 
-    <!-- Brand header -->
-    <header class="sidebar__header">
-      <h1 class="sidebar__title">Smart Gas Map</h1>
-      <p class="sidebar__sub">Ottawa &mdash; Learn YOUR CAR!</p>
-    </header>
+  <!-- Business logic (no DOM deps, safe to load before Vue mounts) -->
+  <script src="js/data.js"></script>
+  <script src="js/GasStation.js"></script>
+  <script src="js/TimeConditions.js"></script>
+  <script src="js/MapManager.js"></script>
+  <script src="js/carData.js"></script>
+  <script src="js/OBDManager.js"></script>
 
-    <!-- Live clock + status indicator -->
-    <div class="status-bar">
-      <span class="status-bar__dot" aria-hidden="true"></span>
-      <span>Local time: <strong id="clock">--:--:--</strong></span>
-    </div>
-
-    <!-- Condition badges (rush hour / night pricing) — populated by JS -->
-    <div id="condition-badges" class="badge-row" role="status" aria-live="polite"></div>
-
-    <!-- Compact rerun bar (visible only after wizard completes) -->
-    <div class="sidebar-rerun">
-      <p class="sidebar-rerun__summary" id="rerun-summary">
-        Showing results for current settings.
-      </p>
-      <button class="btn-edit" id="rerun-btn">Edit Settings</button>
-    </div>
-
-    <!-- ── Input form ── -->
-    <section class="sidebar__section sidebar__section--inputs" aria-label="Car Settings">
-      <h2 class="section-label">Car Settings</h2>
-
-      <div class="form-group">
-        <label class="form-label" for="efficiency">
-          Fuel Efficiency
-          <span class="form-hint">L / 100 km</span>
-        </label>
-        <input
-          class="form-input"
-          type="number"
-          id="efficiency"
-          min="3" max="30" step="0.1"
-          value="9.5"
-          placeholder="e.g. 9.5"
-          aria-label="Fuel efficiency in litres per 100 kilometres"
-        />
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="fuel-needed">
-          Fuel to Pump
-          <span class="form-hint">litres</span>
-        </label>
-        <input
-          class="form-input"
-          type="number"
-          id="fuel-needed"
-          min="1" max="200" step="1"
-          value="40"
-          placeholder="e.g. 40"
-          aria-label="Amount of fuel to pump in litres"
-        />
-      </div>
-
-      <button class="btn-calculate" id="calculate-btn" aria-label="Calculate true cost for all stations">
-        Calculate True Cost
-      </button>
-    </section>
-
-    <!-- Pre-calculation hint — hidden after first run -->
-    <p id="hint" class="hint-text">
-      Enter your car stats above and press Calculate. The app will show the
-      <em>true cost</em> of each station, including the fuel burned driving there.
-    </p>
-
-    <hr class="divider" />
-
-    <!-- Results list — hidden until calculation runs -->
-    <section id="results-panel" class="sidebar__section" aria-live="polite">
-      <h2 class="section-label">
-        Results
-        <span class="section-label__sub">sorted by true cost</span>
-      </h2>
-      <div id="results-list"></div>
-    </section>
-
-    <!-- Map key / legend -->
-    <section class="sidebar__section legend">
-      <h2 class="section-label">Map Key</h2>
-      <div class="legend-item">
-        <span class="legend-dot legend-dot--best"></span>
-        <span>Best deal (lowest true cost)</span>
-      </div>
-      <div class="legend-item">
-        <span class="legend-dot legend-dot--worth"></span>
-        <span>Worth the drive</span>
-      </div>
-      <div class="legend-item">
-        <span class="legend-dot legend-dot--nope"></span>
-        <span>Not worth the drive</span>
-      </div>
-    </section>
-
-    <footer class="sidebar__footer">
-      Data is simulated for educational purposes.<br />
-      Night pricing: 10 PM &ndash; 5 AM &nbsp;&middot;&nbsp; Rush hour: 4 &ndash; 6 PM
-    </footer>
-
-  </aside>
-
-  <!-- ═══════════════════════════════════════════════════════
-       MAP — Leaflet renders here
-  ═══════════════════════════════════════════════════════ -->
-  <main id="map" role="main" aria-label="Interactive gas station map"></main>
-
-  <!-- Floating overlay showing active time-based modifiers -->
-  <aside id="map-overlay" aria-label="Active map modifiers">
-    <p class="overlay-title">Active Modifiers</p>
-    <div class="overlay-row">
-      <span class="overlay-dot" id="rush-dot"></span>
-      <span class="overlay-label" id="rush-label">Rush hour: inactive</span>
-    </div>
-    <div class="overlay-row">
-      <span class="overlay-dot" id="night-dot"></span>
-      <span class="overlay-label" id="night-label">Night discount: inactive</span>
-    </div>
-  </aside>
-
-</div><!-- /#app -->
-
-<!-- ── Scripts loaded in strict dependency order ── -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="js/data.js"></script>
-<script src="js/GasStation.js"></script>
-<script src="js/TimeConditions.js"></script>
-<script src="js/MapManager.js"></script>
-<script src="js/carData.js"></script>
-<script src="js/Wizard.js"></script>
-<script src="js/UIManager.js"></script>
-<script src="js/App.js"></script>
-
+  <!-- Vue app -->
+  <script src="js/vue-app.js"></script>
 </body>
 </html>
